@@ -5,6 +5,10 @@
 
 #include "AxmlPrinter.h"
 
+#ifdef _WIN32		/* windows */
+#pragma warning(disable:4996)
+#endif
+
 int main(int argc, char *argv[])
 {
 	FILE *fp;

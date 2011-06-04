@@ -7,7 +7,19 @@
 #include <stdlib.h>
 #include <memory.h>
 
+#ifndef _WIN32	/* linux */
+
 #include <iconv.h>
+
+#else		/* windows */
+
+#include <windows.h>
+#pragma warning(disable:4996)
+#ifndef snprintf
+#define snprintf _snprintf
+#endif
+
+#endif
 
 #include "AxmlParser.h"
 
@@ -99,7 +111,7 @@ typedef struct {
 
 /* get a 4-byte integer, and mark as parsed */
 /* uses byte oprations to avoid little or big-endian conflict */
-static inline uint32_t 
+static uint32_t 
 GetInt32(Parser_t *ap)
 {
 	uint32_t value = 0;
@@ -109,7 +121,7 @@ GetInt32(Parser_t *ap)
 	return value;
 }
 
-static inline void
+static void
 CopyData(Parser_t *ap, char * to, size_t size)
 {
 	memcpy(to, ap->buf + ap->cur, size);
@@ -118,7 +130,7 @@ CopyData(Parser_t *ap, char * to, size_t size)
 }
 
 /* skip some uknown of useless fields, don't parse them */
-static inline void 
+static void 
 SkipInt32(Parser_t *ap, size_t num)
 {
 	ap->cur += 4 * num;
@@ -126,7 +138,7 @@ SkipInt32(Parser_t *ap, size_t num)
 }
 
 /* if no more byte need to be parsed */
-static inline int
+static int
 NoMoreData(Parser_t *ap)
 {
 	return ap->cur >= ap->size;
@@ -480,22 +492,75 @@ AxmlNext(void *axml)
 	return event;
 }
 
-static int 
-UTF16LEtoUTF8(char *to, size_t tsize, char *from, size_t fsize)
+static char *
+UTF16LEtoUTF8(char *from, size_t nchar)
 {
-	iconv_t ic;
-	size_t res;
+	char *to;
+	size_t tsize;
 
+#ifndef _WIN32		/* linux */
+	size_t ret;
+	size_t fsize;
+	iconv_t ic;
+	char *toptr;
+
+	fsize = nchar * 2 + 2;
+	tsize = fsize * 2;
+#else			/* windows */
+	int ret;
+	#if (WINVER >= 0x0600)
+	DWORD dwConversionFlags = WC_ERR_INVALID_CHARS;
+	#else
+	DWORD dwConversionFlags = 0;
+	#endif
+
+	tsize = (size_t)WideCharToMultiByte(CP_UTF8, dwConversionFlags, (LPCWSTR)from, nchar, NULL, 0, NULL, NULL);
+	if(tsize == 0)
+	{
+		fprintf(stderr, "Error: get utf8 string length.\n");
+		return NULL;
+	}
+	tsize++;
+#endif
+
+	to = (char *)malloc(tsize);
+	if(to == NULL)
+	{
+		fprintf(stderr, "Error: init string.\n");
+		return NULL;
+	}
+	memset(to, 0, tsize);
+
+#ifndef _WIN32		/* linux */
 	ic = iconv_open("UTF-8", "UTF-16LE");
 	if(ic == (iconv_t)(-1))
-		return -1;
+	{
+		fprintf(stderr, "Error: iconv_open.\n");
+		free(to);
+		return NULL;
+	}
 
-	res = iconv(ic, &from, &fsize, &to, &tsize);
-	if(res == (size_t)(-1))
-		return -1;
+	toptr = to;
+	ret = iconv(ic, &from, &fsize, &toptr, &tsize);
+	if(ret == (size_t)(-1))
+	{
+		fprintf(stderr, "Error: iconv.\n");
+		free(to);
+		return NULL;
+	}
 
 	iconv_close(ic);
-	return 0;
+#else			/* windows */
+	ret = WideCharToMultiByte(CP_UTF8, dwConversionFlags, (LPCWSTR)from, nchar, to, tsize, NULL, NULL);
+	if(ret == 0)
+	{
+		fprintf(stderr, "Error: WideCharToMultiByte.\n");
+		free(to);
+		return NULL;
+	}
+#endif
+
+	return to;
 }
 
 static char *
@@ -504,11 +569,7 @@ GetString(Parser_t *ap, uint32_t id)
 	static char *emptyString = "";
 
 	char *offset;
-
-	uint16_t utf16len;
-	uint16_t utf8len;
-
-	int ret;
+	uint16_t chNum;
 	
 	/* out of index range */
 	if(id >= ap->st->count)
@@ -522,29 +583,11 @@ GetString(Parser_t *ap, uint32_t id)
 	offset = ap->st->data + ap->st->offsets[id];
 
 	/* its first 2 bytes is string's characters count */
-	utf16len = *(uint16_t *)offset;
-	/* characters count -> bytes count */
-	utf16len = utf16len * 2 + 2;
+	chNum = *(uint16_t *)offset;
 
-	/* alloc enough memory to save utf-8 string, free in AxmlClose() */
-	utf8len = utf16len * 2;
-	ap->st->strings[id] = (char *)malloc(utf8len);
+	ap->st->strings[id] = UTF16LEtoUTF8(offset+2, (size_t)chNum); 
 	if(ap->st->strings[id] == NULL)
-	{
-		fprintf(stderr, "Error: init string.\n");
 		return emptyString;
-	}
-	memset(ap->st->strings[id], 0, utf8len);
-
-	/* use iconv lib in linux to transform utf-16le to utf-8 */
-	ret = UTF16LEtoUTF8(ap->st->strings[id], utf8len, offset+2, utf16len); 
-	if(ret != 0)
-	{
-		fprintf(stderr, "Error: transform string failed.\n");
-		free(ap->st->strings[id]);
-		ap->st->strings[id] = NULL;
-		return emptyString;
-	}
 
 	return ap->st->strings[id];
 }
@@ -623,7 +666,7 @@ AxmlGetAttrName(void *axml, uint32_t i)
 char *
 AxmlGetAttrValue(void *axml, uint32_t i)
 {
-	static float RadixTable[] = {0.00390625, 3.051758E-005, 1.192093E-007, 4.656613E-010};
+	static float RadixTable[] = {0.00390625f, 3.051758E-005f, 1.192093E-007f, 4.656613E-010f};
 	static char *DimemsionTable[] = {"px", "dip", "sp", "pt", "in", "mm", "", ""};
 	static char *FractionTable[] = {"%", "%p", "", "", "", "", "", ""};
 
