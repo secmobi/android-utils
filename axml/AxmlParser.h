@@ -16,6 +16,12 @@ typedef enum{
 	AE_ERROR,
 } AxmlEvent_t;
 
+#ifdef __cplusplus
+#if __cplusplus
+extern "C" {
+#endif
+#endif
+
 void *AxmlOpen(char *buffer, size_t size);
 
 AxmlEvent_t AxmlNext(void *axml);
@@ -35,5 +41,11 @@ char *AxmlGetAttrValue(void *axml, uint32_t i);
 char *AxmlGetText(void *axml);
 
 int AxmlClose(void *axml);
+
+#ifdef __cplusplus
+#if __cplusplus
+};
+#endif
+#endif
 
 #endif
