@@ -1,0 +1,29 @@
+AXML Parser and AXML Printer
+https://github.com/claudxiao/AndTools
+
+--- Introduction ---
+
+AXML Parser is used to parse the binary XML format used by Android devices (which is called AXML format). It's writen by C language, and provides a pull parse interface to user.
+
+AXML Printer is a example of how to use AXML Parser, and is also a useful tools to transform AXML files into plain XML format.
+
+--- Build ---
+In Unix/Linux with gcc:
+	# make
+
+--- Usage ---
+After build successfully, you can test it by:
+	# AxmlPrinter test.xml
+
+--- Acknowledgement ---
+In order to understand the AXML format and writen this code, I mainly refer these project:
+android4me:
+	http://code.google.com/p/android4me/
+androguard:
+	http://code.google.com/p/androguard/
+More over, I'd like to appreciate DemonHunter.
+
+--- Author ---
+Claud Xiao
+iClaudXiao@gmail.com
+http://www.ClaudXiao.net
