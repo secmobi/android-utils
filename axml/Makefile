@@ -12,6 +12,7 @@ OBJS = $(addprefix $(OBJPATH)/, $(addsuffix .o, $(basename $(C_FILES))))
 all: $(TARGET)
 
 $(OBJPATH)/%.o: %.c
+	$(VERBOSE) mkdir -p obj
 	$(VERBOSE) $(CC) $(CFLAGS) -o $@ -c $<
 
 $(TARGET):$(OBJS)
