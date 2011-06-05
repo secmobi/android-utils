@@ -9,6 +9,10 @@
 #include "AxmlParser.h"
 #include "AxmlPrinter.h"
 
+#ifdef _WIN32		/* windows */
+#pragma warning(disable:4996)
+#endif
+
 int 
 AxmlPrinter(char *buffer, size_t size)
 {
@@ -93,5 +97,83 @@ AxmlPrinter(char *buffer, size_t size)
 
 	AxmlClose(axml);
 
+	return 0;
+}
+
+int 
+AxmlPrinter2(char *inbuf, size_t insize, char **outbuf, size_t *outsize)
+{
+	FILE *fp;
+	char *tmpfile = "temp.dat";
+
+	int ret;
+
+	fp = freopen(tmpfile, "w", stdout);
+	if(fp == NULL)
+	{
+		fprintf(stderr, "Error: cannot redirect stdout to temp file.\n");
+		return -1;
+	}
+
+	ret = AxmlPrinter(inbuf, insize);
+
+#ifndef _WIN32		/* linux */
+	fp = freopen("/dev/tty", "w", stdout);
+#else			/* windows */
+	fp = freopen("CON", "w", stdout);
+#endif
+	if(fp == NULL)
+	{
+		fprintf(stderr, "Fatal Error: cannot redirect stdout to console.\n");
+		remove(tmpfile);
+		exit(-1);
+	}
+
+	if(ret != 0)
+	{
+		remove(tmpfile);
+		return ret;
+	}
+
+	fp = fopen(tmpfile, "rb");
+	if(fp == NULL)
+	{
+		fprintf(stderr, "Error: cannot open temp file.\n");
+		remove(tmpfile);
+		return -1;
+	}
+
+	fseek(fp, 0, SEEK_END);
+	*outsize = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	*outbuf = (char *)malloc(*outsize + 1);
+	if(*outbuf == NULL)
+	{
+		fprintf(stderr, "Error: cannot init outbuf.\n");
+		fclose(fp);
+		remove(tmpfile);
+		*outbuf = NULL;
+		*outsize = 0;
+		return -1;
+	}
+
+	ret = fread(*outbuf, 1, *outsize, fp);
+	if(ret != *outsize)
+	{
+		fprintf(stderr, "Error: cannot read complete temp file.\n");
+		fclose(fp);
+		remove(tmpfile);
+		free(*outbuf);
+		*outbuf = NULL;
+		*outsize = 0;
+		return -1;
+	}
+
+	(*outbuf)[*outsize] = '\0';
+	(*outsize)++;
+
+	fclose(fp);
+	remove(tmpfile);
 	return 0;
 }

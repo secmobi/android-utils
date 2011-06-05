@@ -15,6 +15,8 @@ extern "C" {
 
 int AxmlPrinter(char *buffer, size_t size);
 
+int AxmlPrinter2(char *inbuf, size_t insize, char **outbuf, size_t *outsize);
+
 #ifdef __cplusplus
 #if __cplusplus
 };
