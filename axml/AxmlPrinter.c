@@ -119,15 +119,17 @@ AxmlPrinter2(char *inbuf, size_t insize, char **outbuf, size_t *outsize)
 
 #ifndef _WIN32		/* linux */
 	fp = freopen("/dev/tty", "w", stdout);
-#else			/* windows */
-	fp = freopen("CON", "w", stdout);
-#endif
 	if(fp == NULL)
 	{
 		fprintf(stderr, "Fatal Error: cannot redirect stdout to console.\n");
 		remove(tmpfile);
-		exit(-1);
+		return -2;
 	}
+#else			/* windows */
+	fp = freopen("CON", "w", stdout);
+	/* Do not check if freopen sucessfully in this situation. 
+	 * Refer to Microsoft KB58667 */
+#endif
 
 	if(ret != 0)
 	{
