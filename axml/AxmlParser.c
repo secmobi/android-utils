@@ -7,19 +7,15 @@
 #include <stdlib.h>
 #include <memory.h>
 
-#ifndef _WIN32	/* linux */
+#ifdef _WIN32	/* Windows */
 
-#include <iconv.h>
-
-#else		/* windows */
-
-#include <windows.h>
 #pragma warning(disable:4996)
+
 #ifndef snprintf
 #define snprintf _snprintf
 #endif
 
-#endif
+#endif /* _WIN32 */
 
 #include "AxmlParser.h"
 
@@ -492,75 +488,76 @@ AxmlNext(void *axml)
 	return event;
 }
 
-static char *
-UTF16LEtoUTF8(char *from, size_t nchar)
+/** \brief Convert UTF-16LE string into UTF-8 string
+ *
+ *  You must call this function with to=NULL firstly to get UTF-8 size;
+ *  then you should alloc enough memory to the string;
+ *  at last call this function again to convert actually.
+ *  \param to Pointer to target UTF-8 string
+ *  \param from Pointer to source UTF-16LE string
+ *  \param nch Count of UTF-16LE characters, including terminal zero 
+ *  \retval -1 Converting error.
+ *  \retval positive Bytes of UTF-8 string, including terminal zero.
+ */
+static size_t 
+UTF16LEtoUTF8(char *to, char *from, size_t nch)
 {
-	char *to;
-	size_t tsize;
-
-#ifndef _WIN32		/* linux */
-	size_t ret;
-	size_t fsize;
-	iconv_t ic;
-	char *toptr;
-
-	fsize = nchar * 2 + 2;
-	tsize = fsize * 2;
-#else			/* windows */
-	int ret;
-	#if (WINVER >= 0x0600)
-	DWORD dwConversionFlags = WC_ERR_INVALID_CHARS;
-	#else
-	DWORD dwConversionFlags = 0;
-	#endif
-
-	tsize = (size_t)WideCharToMultiByte(CP_UTF8, dwConversionFlags, (LPCWSTR)from, nchar, NULL, 0, NULL, NULL);
-	if(tsize == 0)
+	size_t total = 0;
+	while(nch > 0)
 	{
-		fprintf(stderr, "Error: get utf8 string length.\n");
-		return NULL;
-	}
-	tsize++;
-#endif
+		uint32_t ucs4;
+		size_t count;
 
-	to = (char *)malloc(tsize);
-	if(to == NULL)
-	{
-		fprintf(stderr, "Error: init string.\n");
-		return NULL;
-	}
-	memset(to, 0, tsize);
+		/* utf-16le -> ucs-4, defined in RFC 2781 */
+		ucs4 = from[0] + (from[1]<<8);
+		from += 2;
+		nch--;
+		if(ucs4 < 0xd800 || ucs4 > 0xdfff)
+		{
+			;
+		}
+		else if(ucs4 >= 0xd800 && ucs4 <= 0xdbff)
+		{
+			unsigned int ext;
+			if(nch <= 0)
+				return -1;
+			ext = from[0] + (from[1]<<8);
+			from += 2;
+			nch--;
+			if(ext < 0xdc00 || ext >0xdfff)
+				return -1;
+			ucs4 = ((ucs4 & 0x3ff)<<10) + (ext & 0x3ff) + 0x10000;
+		}
+		else
+		{
+			return -1;
+		}
 
-#ifndef _WIN32		/* linux */
-	ic = iconv_open("UTF-8", "UTF-16LE");
-	if(ic == (iconv_t)(-1))
-	{
-		fprintf(stderr, "Error: iconv_open.\n");
-		free(to);
-		return NULL;
-	}
+		/* ucs-4 -> utf-8, defined in RFC 2279 */
+		if(ucs4 < 0x80) count = 1;
+		else if(ucs4 < 0x800) count = 2;
+		else if(ucs4 < 0x10000) count = 3;
+		else if(ucs4 < 0x200000) count = 4;
+		else if(ucs4 < 0x4000000) count = 5;
+		else if(ucs4 < 0x80000000) count = 6;
+		else return 0;
 
-	toptr = to;
-	ret = iconv(ic, &from, &fsize, &toptr, &tsize);
-	if(ret == (size_t)(-1))
-	{
-		fprintf(stderr, "Error: iconv.\n");
-		free(to);
-		return NULL;
-	}
+		total += count;
+		if(to == NULL)
+			continue;
 
-	iconv_close(ic);
-#else			/* windows */
-	ret = WideCharToMultiByte(CP_UTF8, dwConversionFlags, (LPCWSTR)from, nchar, to, tsize, NULL, NULL);
-	if(ret == 0)
-	{
-		fprintf(stderr, "Error: WideCharToMultiByte.\n");
-		free(to);
-		return NULL;
+		switch(count)
+		{
+		case 6: to[5] = 0x80 | (ucs4 & 0x3f); ucs4 >>= 6; ucs4 |= 0x4000000;
+		case 5:	to[4] = 0x80 | (ucs4 & 0x3f); ucs4 >>= 6; ucs4 |= 0x200000;
+		case 4: to[3] = 0x80 | (ucs4 & 0x3f); ucs4 >>= 6; ucs4 |= 0x10000;
+		case 3: to[2] = 0x80 | (ucs4 & 0x3f); ucs4 >>= 6; ucs4 |= 0x800;
+		case 2: to[1] = 0x80 | (ucs4 & 0x3f); ucs4 >>= 6; ucs4 |= 0xc0;
+		case 1: to[0] = ucs4; break;
+		}
+		to += count;
 	}
-#endif
-
-	return to;
+	return total;
 }
 
 static char *
@@ -570,6 +567,7 @@ GetString(Parser_t *ap, uint32_t id)
 
 	char *offset;
 	uint16_t chNum;
+	size_t size;
 	
 	/* out of index range */
 	if(id >= ap->st->count)
@@ -585,9 +583,14 @@ GetString(Parser_t *ap, uint32_t id)
 	/* its first 2 bytes is string's characters count */
 	chNum = *(uint16_t *)offset;
 
-	ap->st->strings[id] = UTF16LEtoUTF8(offset+2, (size_t)chNum); 
+	size = UTF16LEtoUTF8(NULL, offset+2, (size_t)(chNum+1));
+	if(size == (size_t)-1)
+		return emptyString;
+	ap->st->strings[id] = (char *)malloc(size);
 	if(ap->st->strings[id] == NULL)
 		return emptyString;
+
+	UTF16LEtoUTF8(ap->st->strings[id], offset+2, (size_t)(chNum+1)); 
 
 	return ap->st->strings[id];
 }
