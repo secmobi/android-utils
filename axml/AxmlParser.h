@@ -42,6 +42,8 @@ char *AxmlGetText(void *axml);
 
 int AxmlClose(void *axml);
 
+int AxmlToXml(char **outbuf, size_t *outsize, char *inbuf, size_t insize);
+
 #ifdef __cplusplus
 #if __cplusplus
 };

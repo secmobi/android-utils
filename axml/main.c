@@ -3,7 +3,7 @@
 #include <string.h>
 #include <stdint.h>
 
-#include "AxmlPrinter.h"
+#include "AxmlParser.h"
 
 #ifdef _WIN32		/* windows */
 #pragma warning(disable:4996)
@@ -12,9 +12,11 @@
 int main(int argc, char *argv[])
 {
 	FILE *fp;
-	char *buffer;
-	size_t size;
-	size_t ret;
+	char *inbuf;
+	size_t insize;
+	char *outbuf;
+	size_t outsize;
+	int ret;
 
 	if(argc != 2)
 	{
@@ -30,30 +32,34 @@ int main(int argc, char *argv[])
 	}
 	
 	fseek(fp, 0, SEEK_END);
-	size = ftell(fp);
+	insize = ftell(fp);
 	fseek(fp, 0, SEEK_SET);
 	
-	buffer = (char *)malloc(size * sizeof(char));
-	if(buffer == NULL)
+	inbuf = (char *)malloc(insize * sizeof(char));
+	if(inbuf == NULL)
 	{
 		fprintf(stderr, "Error: init file buffer.\n");
 		fclose(fp);
 		return -1;
 	}
 
-	ret = fread(buffer, 1, size, fp);
-	if(ret != size)
+	ret = fread(inbuf, 1, insize, fp);
+	if(ret != insize)
 	{
 		fprintf(stderr, "Error: read file.\n");
-		free(buffer);
+		free(inbuf);
 		fclose(fp);
 		return -1;
 	}
 
-	ret = AxmlPrinter(buffer, size);
+	ret = AxmlToXml(&outbuf, &outsize, inbuf, insize);
 
-	free(buffer);
+	free(inbuf);
 	fclose(fp);
+
+	if(ret == 0)
+		printf("%s", outbuf);
+	free(outbuf);
 	
 	return ret;
 }

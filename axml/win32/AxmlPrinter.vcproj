@@ -3,9 +3,8 @@
 	ProjectType="Visual C++"
 	Version="9.00"
 	Name="AxmlPrinter"
-	ProjectGUID="{89063A64-199B-47CE-9627-C35B0F6D4ED9}"
+	ProjectGUID="{439D982C-BA05-4433-920E-8BC168098133}"
 	RootNamespace="AxmlPrinter"
-	Keyword="Win32Proj"
 	TargetFrameworkVersion="196613"
 	>
 	<Platforms>
@@ -41,11 +40,9 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
 				RuntimeLibrary="3"
-				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="4"
 			/>
@@ -60,9 +57,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				LinkIncremental="2"
 				GenerateDebugInformation="true"
-				SubSystem="1"
 				TargetMachine="1"
 			/>
 			<Tool
@@ -114,10 +109,8 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
-				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				DebugInformationFormat="3"
 			/>
@@ -133,9 +126,7 @@
 			<Tool
 				Name="VCLinkerTool"
 				OutputFile="..\$(ProjectName).exe"
-				LinkIncremental="1"
 				GenerateDebugInformation="true"
-				SubSystem="1"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
 				TargetMachine="1"
@@ -176,10 +167,6 @@
 				>
 			</File>
 			<File
-				RelativePath="..\AxmlPrinter.c"
-				>
-			</File>
-			<File
 				RelativePath="..\main.c"
 				>
 			</File>
@@ -191,10 +178,6 @@
 			>
 			<File
 				RelativePath="..\AxmlParser.h"
-				>
-			</File>
-			<File
-				RelativePath="..\AxmlPrinter.h"
 				>
 			</File>
 		</Filter>

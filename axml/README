@@ -3,9 +3,9 @@ https://github.com/claudxiao/AndTools
 
 --- Introduction ---
 
-AXML Parser is used to parse the binary XML format used by Android devices (which is called AXML format). It's writen by C language, and provides a pull parse interface to user.
+AXML Parser is used to parse the binary XML format used by Android devices (which is called AXML format). It's writen by ANSI C language. It provides a pull parse interface to user, and provides a simple function(AxmlToXml) to convert AXML format into XML format.
 
-AXML Printer is a example of how to use AXML Parser, and is also a useful tools to transform AXML files into plain XML format.
+AXML Printer is an example of how to use AXML Parser, and is also an useful tools to transform AXML files into plain XML format.
 
 --- Linux ---
 Build:

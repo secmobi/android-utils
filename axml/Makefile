@@ -1,4 +1,4 @@
-C_FILES = AxmlParser.c AxmlPrinter.c main.c
+C_FILES = AxmlParser.c main.c
 TARGET = AxmlPrinter
 
 CC = gcc

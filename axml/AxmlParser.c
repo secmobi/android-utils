@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <memory.h>
+#include <string.h>
+#include <stdarg.h>
 
 #ifdef _WIN32	/* Windows */
 
@@ -790,4 +792,159 @@ AxmlGetNsUri(void *axml)
 	Parser_t *ap;
 	ap = (Parser_t *)axml;
 	return GetString(ap, ap->nsList->uri);
+}
+
+typedef struct{
+	char *data;
+	size_t size;
+	size_t cur;
+} Buff_t;
+
+static int 
+InitBuff(Buff_t *buf)
+{
+	if(buf == NULL)
+		return -1;
+	buf->size = 32*1024;
+	buf->data = (char *)malloc(buf->size);
+	if(buf->data == NULL)
+	{
+		fprintf(stderr, "Error: init buffer.\n");
+		return -1;
+	}
+	buf->cur = 0;
+	return 0;
+}
+
+static int 
+PrintToBuff(Buff_t *buf, size_t maxlen, const char *format, ...)
+{
+	va_list ap;
+	size_t len;
+	
+	if(maxlen >= buf->size - buf->cur)
+	{
+		buf->size += 32*1024;
+		buf->data = (char *)realloc(buf->data, buf->size);
+		if(buf->data == NULL)
+		{
+			fprintf(stderr, "Error: realloc buffer.\n");
+			return -1;
+		}
+	}
+
+	va_start(ap, format);
+	vsnprintf(buf->data + buf->cur, buf->size - buf->cur, format, ap);
+	va_end(ap);
+
+	len = strlen(buf->data + buf->cur);
+	if(len > maxlen)
+	{
+		fprintf(stderr, "Error: length more than expected.\n");
+		return -1;
+	}
+	buf->cur += len;
+	return 0;
+}
+
+int 
+AxmlToXml(char **outbuf, size_t *outsize, char *inbuf, size_t insize)
+{
+	void *axml;
+	AxmlEvent_t event;
+	Buff_t buf;
+
+	int tabCnt = 0;
+
+	if(InitBuff(&buf) != 0)
+		return -1;
+
+	axml = AxmlOpen(inbuf, insize);
+	if(axml == NULL)
+		return -1;
+
+	while((event = AxmlNext(axml)) != AE_ENDDOC)
+	{
+		char *prefix;
+		char *name;
+		char *value;
+		uint32_t i, n;
+
+		switch(event){
+		case AE_STARTDOC:
+			PrintToBuff(&buf, 50, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
+			break;
+			
+		case AE_STARTTAG:
+			PrintToBuff(&buf, tabCnt*4+1, "%*s", tabCnt*4, "");
+			tabCnt++;
+
+			prefix = AxmlGetTagPrefix(axml);
+			name = AxmlGetTagName(axml);
+			if(strlen(prefix) != 0)
+				PrintToBuff(&buf, strlen(prefix)+strlen(name)+5, "<%s:%s ", prefix, name);
+			else
+				PrintToBuff(&buf, strlen(name)+3, "<%s ", name);
+
+			if(AxmlNewNamespace(axml))
+			{
+				prefix = AxmlGetNsPrefix(axml);
+				name = AxmlGetNsUri(axml);
+				PrintToBuff(&buf, strlen(prefix)+strlen(name)+12, "xmlns:%s=\"%s\" ", prefix, name);
+			}
+
+			n = AxmlGetAttrCount(axml);
+			for(i = 0; i < n; i++)
+			{
+				prefix = AxmlGetAttrPrefix(axml, i);
+				name = AxmlGetAttrName(axml, i);
+				value = AxmlGetAttrValue(axml, i);
+
+				if(strlen(prefix) != 0)
+					PrintToBuff(&buf, strlen(prefix)+strlen(name)+strlen(value)+8,
+							"%s:%s=\"%s\" ", prefix, name, value);
+				else
+					PrintToBuff(&buf, strlen(name)+strlen(value)+6, "%s=\"%s\" ", name, value);
+
+				/* must manually free attribute value here */
+				free(value);
+			}
+
+			PrintToBuff(&buf, 3, ">\n");
+			break;
+
+		case AE_ENDTAG:
+			--tabCnt;
+			PrintToBuff(&buf, tabCnt*4+1, "%*s", tabCnt*4, "");
+
+			prefix = AxmlGetTagPrefix(axml);
+			name = AxmlGetTagName(axml);
+			if(strlen(prefix) != 0)
+				PrintToBuff(&buf, strlen(prefix)+strlen(name)+7, "</%s:%s>\n", prefix, name);
+			else
+				PrintToBuff(&buf, strlen(name)+5, "</%s>\n", name);
+			break;
+
+		case AE_TEXT:
+			name = AxmlGetText(axml);
+			PrintToBuff(&buf, strlen(name)+2, "%s\n", name);
+			break;
+
+		case AE_ERROR:
+			fprintf(stderr, "Error: AxmlNext() returns a AE_ERROR event.\n");
+			AxmlClose(axml);
+			return -1;
+			break;
+
+		default:
+			break;
+		}
+	}
+
+	AxmlClose(axml);
+
+	(*outbuf) = buf.data;
+	(*outsize) = buf.cur;
+
+	return 0;
 }
