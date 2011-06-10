@@ -559,7 +559,9 @@ UTF16LEtoUTF8(unsigned char *to, unsigned char *from, size_t nch)
 		}
 		to += count;
 	}
-	return total;
+	if(to != NULL)
+		to[0] = '\0';
+	return total+1;
 }
 
 static char *
@@ -585,14 +587,14 @@ GetString(Parser_t *ap, uint32_t id)
 	/* its first 2 bytes is string's characters count */
 	chNum = *(uint16_t *)offset;
 
-	size = UTF16LEtoUTF8(NULL, offset+2, (size_t)(chNum+1));
+	size = UTF16LEtoUTF8(NULL, offset+2, (size_t)chNum);
 	if(size == (size_t)-1)
 		return emptyString;
 	ap->st->strings[id] = (unsigned char *)malloc(size);
 	if(ap->st->strings[id] == NULL)
 		return emptyString;
 
-	UTF16LEtoUTF8(ap->st->strings[id], offset+2, (size_t)(chNum+1)); 
+	UTF16LEtoUTF8(ap->st->strings[id], offset+2, (size_t)chNum); 
 
 	return (char *)(ap->st->strings[id]);
 }
