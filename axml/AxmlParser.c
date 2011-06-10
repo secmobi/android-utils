@@ -66,10 +66,10 @@ typedef struct{
 	uint32_t count;		/* count of all strings */
 	uint32_t *offsets;	/* each string's offset in raw data block */
 
-	char *data;		/* raw data block, contains all strings encoded by UTF-16LE */
+	unsigned char *data;	/* raw data block, contains all strings encoded by UTF-16LE */
 	size_t len;		/* length of raw data block */
 
-	char **strings;		/* string table, point to strings encoded by UTF-8 */
+	unsigned char **strings;/* string table, point to strings encoded by UTF-8 */
 } StringTable_t;
 
 /* attribute structure within tag */
@@ -120,7 +120,7 @@ GetInt32(Parser_t *ap)
 }
 
 static void
-CopyData(Parser_t *ap, char * to, size_t size)
+CopyData(Parser_t *ap, unsigned char * to, size_t size)
 {
 	memcpy(to, ap->buf + ap->cur, size);
 	ap->cur += size;
@@ -210,7 +210,7 @@ ParseStringChunk(Parser_t *ap)
 		ap->st->offsets[i] = GetInt32(ap);
 
 	/* init string table */
-	ap->st->strings = (char **)malloc(ap->st->count * sizeof(char *));
+	ap->st->strings = (unsigned char **)malloc(ap->st->count * sizeof(unsigned char *));
 	if(ap->st->strings == NULL)
 	{
 		fprintf(stderr, "Error: init string table.\n");
@@ -227,7 +227,7 @@ ParseStringChunk(Parser_t *ap)
 
 	/* save string raw data */
 	ap->st->len = (styleOffset ? styleOffset : chunkSize) - stringOffset;
-	ap->st->data = (char *)malloc(ap->st->len * sizeof(char));
+	ap->st->data = (unsigned char *)malloc(ap->st->len);
 	if(ap->st->data == NULL)
 	{
 		fprintf(stderr, "Error: init string raw data.\n");
@@ -502,7 +502,7 @@ AxmlNext(void *axml)
  *  \retval positive Bytes of UTF-8 string, including terminal zero.
  */
 static size_t 
-UTF16LEtoUTF8(char *to, char *from, size_t nch)
+UTF16LEtoUTF8(unsigned char *to, unsigned char *from, size_t nch)
 {
 	size_t total = 0;
 	while(nch > 0)
@@ -567,7 +567,7 @@ GetString(Parser_t *ap, uint32_t id)
 {
 	static char *emptyString = "";
 
-	char *offset;
+	unsigned char *offset;
 	uint16_t chNum;
 	size_t size;
 	
@@ -577,7 +577,7 @@ GetString(Parser_t *ap, uint32_t id)
 
 	/* already parsed, directly use previous result */
 	if(ap->st->strings[id] != NULL)
-		return ap->st->strings[id];
+		return (char *)(ap->st->strings[id]);
 
 	/* point to string's raw data */
 	offset = ap->st->data + ap->st->offsets[id];
@@ -588,13 +588,13 @@ GetString(Parser_t *ap, uint32_t id)
 	size = UTF16LEtoUTF8(NULL, offset+2, (size_t)(chNum+1));
 	if(size == (size_t)-1)
 		return emptyString;
-	ap->st->strings[id] = (char *)malloc(size);
+	ap->st->strings[id] = (unsigned char *)malloc(size);
 	if(ap->st->strings[id] == NULL)
 		return emptyString;
 
 	UTF16LEtoUTF8(ap->st->strings[id], offset+2, (size_t)(chNum+1)); 
 
-	return ap->st->strings[id];
+	return (char *)(ap->st->strings[id]);
 }
 
 char *
