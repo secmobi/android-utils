@@ -400,7 +400,7 @@ AxmlNext(void *axml)
 		ap->tagUri = GetInt32(ap);
 		ap->tagName = GetInt32(ap);
 		SkipInt32(ap, 1);	/* flags, unknown usage */
-		ap->attrCount = GetInt32(ap);
+		ap->attrCount = GetInt32(ap) & 0x00ff;
 		SkipInt32(ap, 1);	/* classAttribute, unknown usage */
 
 		ap->attrList = (Attribute_t *)malloc(
