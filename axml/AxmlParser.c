@@ -81,6 +81,12 @@ typedef struct{
 	uint32_t data;		/* attribute value, encoded on type */
 } Attribute_t;
 
+typedef struct AttrStack_t{
+	Attribute_t *list;	/* attributes of current tag */
+	uint32_t count;		/* count of these attributes */
+	struct AttrStack_t *next;
+} AttrStack_t;
+
 /* namespace record */
 typedef struct NsRecord{
 	uint32_t prefix;
@@ -103,8 +109,7 @@ typedef struct {
 	uint32_t tagUri;	/* current tag's namespace's uri */
 	uint32_t text;		/* when tag is text, its content */
 
-	Attribute_t *attrList;	/* attributes of current tag */
-	uint32_t attrCount;	/* count of these attributes */
+	AttrStack_t *attr;	/* attributes */
 } Parser_t;
 
 /* get a 4-byte integer, and mark as parsed */
@@ -299,8 +304,7 @@ AxmlOpen(char *buffer, size_t size)
 	ap->nsList = NULL;
 	ap->nsNew = 0;
 
-	ap->attrList = NULL;
-	ap->attrCount = 0;
+	ap->attr = NULL;
 
 	ap->tagName = (uint32_t)(-1);
 	ap->tagUri = (uint32_t)(-1);
@@ -397,43 +401,61 @@ AxmlNext(void *axml)
 	if(chunkType == CHUNK_STARTTAG)
 	{
 		uint32_t i;
+		AttrStack_t *attr;
+
+		attr = (AttrStack_t *)malloc(sizeof(AttrStack_t));
+		if(attr == NULL)
+		{
+			fprintf(stderr, "Error: init attribute.\n");
+			return AE_ERROR;
+		}
+
 		ap->tagUri = GetInt32(ap);
 		ap->tagName = GetInt32(ap);
 		SkipInt32(ap, 1);	/* flags, unknown usage */
-		ap->attrCount = GetInt32(ap) & 0x0000ffff;
+
+		attr->count = GetInt32(ap) & 0x0000ffff;
 		SkipInt32(ap, 1);	/* classAttribute, unknown usage */
 
-		ap->attrList = (Attribute_t *)malloc(
-				ap->attrCount * sizeof(Attribute_t));
-		if(ap->attrList == NULL)
+		attr->list = (Attribute_t *)malloc(
+				attr->count * sizeof(Attribute_t));
+		if(attr->list == NULL)
 		{
 			fprintf(stderr, "Error: init attribute list.\n");
+			free(attr);
 			return AE_ERROR;
 		}
 
 		/* attribute list */
-		for(i = 0; i < ap->attrCount; i++)
+		for(i = 0; i < attr->count; i++)
 		{
-			ap->attrList[i].uri = GetInt32(ap);
-			ap->attrList[i].name = GetInt32(ap);
-			ap->attrList[i].string = GetInt32(ap);
+			attr->list[i].uri = GetInt32(ap);
+			attr->list[i].name = GetInt32(ap);
+			attr->list[i].string = GetInt32(ap);
 			/* note: type must >> 24 */
-			ap->attrList[i].type = GetInt32(ap) >> 24;
-			ap->attrList[i].data = GetInt32(ap);
+			attr->list[i].type = GetInt32(ap) >> 24;
+			attr->list[i].data = GetInt32(ap);
 		}
+
+		attr->next = ap->attr;
+		ap->attr = attr;
 
 		event = AE_STARTTAG;
 	}
 	else if(chunkType == CHUNK_ENDTAG)
 	{
+		AttrStack_t *attr;
+
 		ap->tagUri = GetInt32(ap);
 		ap->tagName = GetInt32(ap);
 
-		if(ap->attrList != NULL)
+		if(ap->attr != NULL)
 		{
-			free(ap->attrList);
-			ap->attrList = NULL;
-			ap->attrCount = 0;
+			attr = ap->attr;
+			ap->attr = ap->attr->next;
+
+			free(attr->list);
+			free(attr);
 		}
 
 		event = AE_ENDTAG;
@@ -639,7 +661,7 @@ AxmlGetAttrCount(void *axml)
 {
 	Parser_t *ap;
 	ap = (Parser_t *)axml;
-	return ap->attrCount;
+	return ap->attr->count;
 }
 
 char *
@@ -651,7 +673,7 @@ AxmlGetAttrPrefix(void *axml, uint32_t i)
 	uint32_t uri;
 
 	ap = (Parser_t *)axml;
-	uri = ap->attrList[i].uri;
+	uri = ap->attr->list[i].uri;
 
 	for(ns = ap->nsList; ns != NULL; ns = ns->next)
 	{
@@ -667,7 +689,7 @@ AxmlGetAttrName(void *axml, uint32_t i)
 {
 	Parser_t *ap;
 	ap = (Parser_t *)axml;
-	return GetString(ap, ap->attrList[i].name);
+	return GetString(ap, ap->attr->list[i].name);
 }
 
 char *
@@ -683,12 +705,12 @@ AxmlGetAttrValue(void *axml, uint32_t i)
 	char *buf;
 
 	ap = (Parser_t *)axml;
-	type = ap->attrList[i].type;
+	type = ap->attr->list[i].type;
 
 	if(type == ATTR_STRING)
 	{
 		char *str;
-		str = GetString(ap, ap->attrList[i].string);
+		str = GetString(ap, ap->attr->list[i].string);
 
 		/* free by user */
 		buf = (char *)malloc(strlen(str)+1);
@@ -699,7 +721,7 @@ AxmlGetAttrValue(void *axml, uint32_t i)
 		return buf;
 	}
 
-	data = ap->attrList[i].data;
+	data = ap->attr->list[i].data;
 
 	/* free by user */
 	buf = (char *)malloc(32);
