@@ -1,0 +1,194 @@
+LittleEndian();
+
+#define NO_INDEX (0xFFFFFFFF)
+#define ENDIAN_CONSTANT (0x12345678)
+#define REVERSE_ENDIAN_CONSTANT (0x78563412);
+
+typedef ubyte SHA1[20] <read=SHA1Read, format=hex>;
+
+string SHA1Read(SHA1 sig) {
+    string ret;
+    string tmp;
+    int i;
+
+    for(i = 0; i<20; i++) {
+        SPrintf(tmp, "%.2X", sig[i]);
+        ret += tmp;
+    }
+
+    return ret;
+}
+
+typedef struct {
+    char dex[3];
+    char newline;
+    char ver[3];
+    char zero;
+
+    // XXX not checking the version, but it should be 035
+    if((Strcmp(dex, "dex") && Strcmp(dex, "dey")) ||
+        newline != '\n' ||
+        zero != 0) {
+
+        Warning("Invalid DEX file");
+        return -1;
+    }
+} dex_magic <read=DexMagicRead>;
+
+string DexMagicRead(dex_magic &m) {
+    string s;
+    SPrintf(s, "%s %s", m.dex, m.ver);
+    return s;
+}
+
+typedef struct {
+    dex_magic magic <comment="Magic value">; 
+    uint checksum <format=hex, comment="Alder32 checksum of rest of file">;
+    SHA1 signature <comment="SHA-1 signature of rest of file">;
+    uint file_size <comment="File size in bytes">;
+    uint header_size <comment="Header size in bytes">;
+    uint endian_tag <format=hex, comment="Endianness tag">;
+
+    if(endian_tag != ENDIAN_CONSTANT) {
+        // XXX we don't handle big endian files
+        Warning("Invalid endian_tag %.8X, should be %.8X", endian_tag, ENDIAN_CONSTANT);
+    }
+
+    uint link_size <comment="Size of link section">;
+    uint link_off <comment="File offset of link section">;
+    uint map_off <comment="File offset of map list">;
+    uint string_ids_size <comment="Count of strings in the string ID list">;
+    uint string_ids_off <comment="File offset of string ID list">;
+    uint type_ids_size <comment="Count of types in the type ID list">;
+    uint type_ids_off <comment="File offset of type ID list">;
+    uint proto_ids_size <comment="Count of items in the method prototype ID list">;
+    uint proto_ids_off <comment="File offset of method prototype ID list">;
+    uint field_ids_size <comment="Count of items in the field ID list">;
+    uint field_ids_off <comment="File offset of field ID list">; 
+    uint method_ids_size <comment="Count of items in the method ID list">;
+    uint method_ids_off <comment="File offset of method ID list">;
+    uint class_defs_size <comment="Count of items in the class definitions list">;
+    uint class_defs_off <comment="File offset of class definitions list">;
+    uint data_size <comment="Size of data section in bytes">;
+    uint data_off <comment="File offset of data section">;    
+} dex_header_item;
+
+typedef struct {
+    char oat[3];
+    char newline;
+    char ver[3] <comment="Format version">;
+    char zero;
+} oat_magic <read=OatMagicRead>;
+
+string OatMagicRead(oat_magic &m) {
+    string s;
+    SPrintf(s, "%s %s", m.oat, m.ver);
+    return s;
+}
+
+typedef enum <uint> {
+    kNone = 0,
+    kArm = 1,
+    kThumb2 = 2,
+    kX86 = 3,
+    kMips = 4
+} InstructionSet;
+
+typedef enum int {
+    kStatusError = -1,
+    kStatusNotReady = 0,
+    kStatusIdx = 1,  // Loaded, DEX idx in super_class_type_idx_ and interfaces_type_idx_.
+    kStatusLoaded = 2,  // DEX idx values resolved.
+    kStatusResolved = 3,  // Part of linking.
+    kStatusVerifying = 4,  // In the process of being verified.
+    kStatusRetryVerificationAtRuntime = 5,  // Compile time verification failed, retry at runtime.
+    kStatusVerifyingAtRuntime = 6,  // Retrying verification at runtime.
+    kStatusVerified = 7,  // Logically part of linking; done pre-init.
+    kStatusInitializing = 8,  // Class init in progress.
+    kStatusInitialized = 9,  // Ready to go.
+}Status ;
+
+typedef struct {
+    uint image_file_location_oat_checksum_ <format=hex, comment="">;
+    uint image_file_location_oat_data_begin_ <format=hex, comment="">;
+    uint image_file_location_size_ <format=hex, comment="">;
+    byte image_file_location_data_[image_file_location_size_] <comment="">;
+} ImageFileLocation <read=ImageFileLocationRead>;
+
+string ImageFileLocationRead(ImageFileLocation &i) {
+    return i.image_file_location_data_;
+}
+
+typedef struct {
+    oat_magic magic <comment="Magic value">;
+    uint adler32_checksum_ <format=hex, comment="Adler32 checksum">;
+    InstructionSet instruction_set_ <comment="Instruction set">;
+    uint dex_file_count_ <format=hex, comment="">;
+    uint executable_offset_ <format=hex, comment="">;
+    uint interpreter_to_interpreter_bridge_offset_ <format=hex, comment="">;
+    uint interpreter_to_compiled_code_bridge_offset_ <format=hex, comment="">;
+    uint jni_dlsym_lookup_offset_ <format=hex, comment="">;
+    uint portable_resolution_trampoline_offset_ <format=hex, comment="">;
+    uint portable_to_interpreter_bridge_offset_ <format=hex, comment="">;
+    uint quick_resolution_trampoline_offset_ <format=hex, comment="">;
+    uint quick_to_interpreter_bridge_offset_ <format=hex, comment="">;
+    ImageFileLocation image_file_location <comment="">;
+} header_item;
+
+
+typedef struct {
+    uint dex_file_location_size <format=hex, comment="">;
+    byte dex_file_location_data[dex_file_location_size] <comment="">;
+    uint dex_file_checksum <format=hex, comment="">;
+    uint dex_file_offset <format=hex, comment="">;
+    local quad curpos = FTell();
+    FSeek(dex_file_offset);
+    dex_header_item dex_header <comment="DEX file header">;
+    FSeek(dex_file_offset + dex_header.class_defs_off);
+    FSeek(curpos);
+    uint oat_class_offsets_pointer[dex_header.class_defs_size] <format=hex, comment="">;
+} dex_file_item <read=DexFileItemReader, comment="">;
+
+string DexFileItemReader(dex_file_item &d) {
+    return d.dex_file_location_data;
+}
+
+typedef struct (int size) {
+    local int s = size;
+    dex_file_item dex_file[size] <comment="Dex file">;
+}dex_file_list <read=DexFileListReader>;
+
+string DexFileListReader(dex_file_list &l) {
+    string s;
+    s = SPrintf(s, "%d dex files", l.s);
+    return s;
+}
+
+typedef struct {
+    Status status <comment="">;
+    uint methods_pointer <format=hex, comment="">;
+} oat_class_item <comment="">;
+
+typedef struct (int size) {
+    local int s = size;
+    oat_class_item oat_class[size] <comment="Oat class">;
+} oat_class_list <read=OatClassListReader>;
+
+string OatClassListReader(oat_class_list &l) {
+    string s;
+    s = SPrintf(s, "%d oat class", l.s);
+    return s;
+}
+
+////////////////////////////////////////////////
+// Main
+////////////////////////////////////////////////
+
+FSeek(0);
+
+header_item oat_header <comment="OAT file header">;
+dex_file_list dex_files(oat_header.dex_file_count_) <comment="DEX file">;
+
+// Assume Only 1 dex file
+FSeek(dex_files.dex_file[0].oat_class_offsets_pointer[0]);
+oat_class_list oat_classes(dex_files.dex_file[0].dex_header.class_defs_size);
