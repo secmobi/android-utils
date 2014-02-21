@@ -44,7 +44,7 @@ enum{
 	ATTR_FLOAT 	= 4,
 	ATTR_DIMENSION 	= 5,
 	ATTR_FRACTION 	= 6,
-	
+
 	ATTR_FIRSTINT 	= 16,
 
 	ATTR_DEC 	= 16,
@@ -114,7 +114,7 @@ typedef struct {
 
 /* get a 4-byte integer, and mark as parsed */
 /* uses byte oprations to avoid little or big-endian conflict */
-static uint32_t 
+static uint32_t
 GetInt32(Parser_t *ap)
 {
 	uint32_t value = 0;
@@ -133,7 +133,7 @@ CopyData(Parser_t *ap, unsigned char * to, size_t size)
 }
 
 /* skip some uknown of useless fields, don't parse them */
-static void 
+static void
 SkipInt32(Parser_t *ap, size_t num)
 {
 	ap->cur += 4 * num;
@@ -147,7 +147,7 @@ NoMoreData(Parser_t *ap)
 	return ap->cur >= ap->size;
 }
 
-static int 
+static int
 ParseHeadChunk(Parser_t *ap)
 {
 	/* file magic */
@@ -167,7 +167,7 @@ ParseHeadChunk(Parser_t *ap)
 	return 0;
 }
 
-static int 
+static int
 ParseStringChunk(Parser_t *ap)
 {
 	uint32_t chunkSize;
@@ -252,7 +252,7 @@ ParseStringChunk(Parser_t *ap)
 	return 0;
 }
 
-static int 
+static int
 ParseResourceChunk(Parser_t *ap)
 {
 	uint32_t chunkSize;
@@ -295,7 +295,7 @@ AxmlOpen(char *buffer, size_t size)
 		fprintf(stderr, "Error: init parser.\n");
 		return NULL;
 	}
-	
+
 	/* init parser */
 	ap->buf = (unsigned char *)buffer;
 	ap->size = size;
@@ -331,7 +331,7 @@ AxmlOpen(char *buffer, size_t size)
 	return (void *)ap;
 }
 
-int 
+int
 AxmlClose(void *axml)
 {
 	Parser_t *ap;
@@ -368,7 +368,7 @@ AxmlClose(void *axml)
 	return 0;
 }
 
-AxmlEvent_t 
+AxmlEvent_t
 AxmlNext(void *axml)
 {
 	static AxmlEvent_t event = -1;
@@ -382,7 +382,7 @@ AxmlNext(void *axml)
 		event = AE_STARTDOC;
 		return event;
 	}
-	
+
 	ap = (Parser_t *)axml;
 
 	/* when buffer ends */
@@ -468,7 +468,7 @@ AxmlNext(void *axml)
 			fprintf(stderr, "Error: init namespace.\n");
 			return AE_ERROR;
 		}
-		
+
 		ns->prefix = GetInt32(ap);
 		ns->uri = GetInt32(ap);
 
@@ -519,11 +519,11 @@ AxmlNext(void *axml)
  *  at last call this function again to convert actually.
  *  \param to Pointer to target UTF-8 string
  *  \param from Pointer to source UTF-16LE string
- *  \param nch Count of UTF-16LE characters, including terminal zero 
+ *  \param nch Count of UTF-16LE characters, including terminal zero
  *  \retval -1 Converting error.
  *  \retval positive Bytes of UTF-8 string, including terminal zero.
  */
-static size_t 
+static size_t
 UTF16LEtoUTF8(unsigned char *to, unsigned char *from, size_t nch)
 {
 	size_t total = 0;
@@ -594,7 +594,7 @@ GetString(Parser_t *ap, uint32_t id)
 	unsigned char *offset;
 	uint16_t chNum;
 	size_t size;
-	
+
 	/* out of index range */
 	if(id >= ap->st->count)
 		return emptyString;
@@ -616,7 +616,7 @@ GetString(Parser_t *ap, uint32_t id)
 	if(ap->st->strings[id] == NULL)
 		return emptyString;
 
-	UTF16LEtoUTF8(ap->st->strings[id], offset+2, (size_t)chNum); 
+	UTF16LEtoUTF8(ap->st->strings[id], offset+2, (size_t)chNum);
 
 	return (char *)(ap->st->strings[id]);
 }
@@ -656,7 +656,7 @@ AxmlGetText(void *axml)
 	return GetString(ap, ap->text);
 }
 
-uint32_t 
+uint32_t
 AxmlGetAttrCount(void *axml)
 {
 	Parser_t *ap;
@@ -784,11 +784,11 @@ AxmlGetAttrValue(void *axml, uint32_t i)
 	{
 		snprintf(buf, 32, "<0x%x, type 0x%02x>", data, type);
 	}
-	
+
 	return buf;
 }
 
-int 
+int
 AxmlNewNamespace(void *axml)
 {
 	Parser_t *ap;
@@ -824,7 +824,7 @@ typedef struct{
 	size_t cur;
 } Buff_t;
 
-static int 
+static int
 InitBuff(Buff_t *buf)
 {
 	if(buf == NULL)
@@ -840,12 +840,12 @@ InitBuff(Buff_t *buf)
 	return 0;
 }
 
-static int 
+static int
 PrintToBuff(Buff_t *buf, size_t maxlen, const char *format, ...)
 {
 	va_list ap;
 	size_t len;
-	
+
 	if(maxlen >= buf->size - buf->cur)
 	{
 		buf->size += 32*1024;
@@ -871,7 +871,7 @@ PrintToBuff(Buff_t *buf, size_t maxlen, const char *format, ...)
 	return 0;
 }
 
-int 
+int
 AxmlToXml(char **outbuf, size_t *outsize, char *inbuf, size_t insize)
 {
 	void *axml;
@@ -898,7 +898,7 @@ AxmlToXml(char **outbuf, size_t *outsize, char *inbuf, size_t insize)
 		case AE_STARTDOC:
 			PrintToBuff(&buf, 50, "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n");
 			break;
-			
+
 		case AE_STARTTAG:
 			PrintToBuff(&buf, tabCnt*4+1, "%*s", tabCnt*4, "");
 			tabCnt++;
@@ -910,11 +910,16 @@ AxmlToXml(char **outbuf, size_t *outsize, char *inbuf, size_t insize)
 			else
 				PrintToBuff(&buf, strlen(name)+3, "<%s ", name);
 
-			if(AxmlNewNamespace(axml))
+			if (AxmlNewNamespace(axml))
 			{
-				prefix = AxmlGetNsPrefix(axml);
-				name = AxmlGetNsUri(axml);
-				PrintToBuff(&buf, strlen(prefix)+strlen(name)+12, "xmlns:%s=\"%s\" ", prefix, name);
+                Parser_t *ap;
+                ap = (Parser_t *)axml;
+                for(NsRecord_t *ns = ap->nsList; ns != NULL; ns = ns->next)
+                {
+                    prefix = GetString(ap, ns->prefix);
+                    name = GetString(ap, ns->uri);
+                    PrintToBuff(&buf, strlen(prefix)+strlen(name)+12, "xmlns:%s=\"%s\" ", prefix, name);
+                }
 			}
 
 			n = AxmlGetAttrCount(axml);
